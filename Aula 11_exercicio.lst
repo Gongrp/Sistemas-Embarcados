@@ -1,0 +1,66 @@
+gavrasm Gerd's AVR assembler version 5.4 (C)2022 by DG4FAC
+----------------------------------------------------------
+
+Path:        C:\Documents\ufrgs\7° Semestre\Embarcados\
+Source file: Aula 11_exercicio.asm
+Hex file:    Aula 11_exercicio.hex
+Eeprom file: Aula 11_exercicio.eep
+Compiled:    08.04.2026, 16:49:47
+Pass:        2
+
+     1: 
+     2: 
+     3: .include "m328pdef.inc" ; Define device ATmega328P
+ -> Warning 009: Include defs not necessary, using internal values!
+   File: C:\Documents\ufrgs\7° Semestre\Embarcados\Aula 11_exercicio.asm, Line: 3
+   Source line: .include "m328pdef.inc" ; Define device ATmega328P
+     4: .list
+     5: 
+     6: .dseg
+     7: .org SRAM_START
+     8: 
+     9: 
+    10: .cseg
+    11: .org 000000
+    12: 
+    13: ;Configurando port D no modo entrada e incializando r20
+    14: 
+    15: 000000   E040  ldi r20, 0x00;
+    16: 000001   B94A  out ddrd, r20;
+    17: 
+    18: 000002   EF3F  ldi r19, 0xff;
+    19: 000003   B934  out ddrb, r19;
+    20: 
+    21: ; WHILE
+    22: 000004   9543  inc r20;
+    23: 000005   B943  out pinb, r20;
+    24: 000006   B159  in r21, pind;
+    25: 000007   3050  cpi r21, 0x00;
+    26: 000008   F009  breq loop;
+    27: 000009   CFFA  rjmp while;
+    28: 
+    29: 
+    30: ; LOOP
+    31: 00000A   0000  nop
+    32: 00000B   CFFE  rjmp	LOOP
+    33: 
+    34: 
+
+List of symbols:
+Type nDef nUsed             Decimalval           Hexval Name
+  T     1     1                    171               AB ATMEGA328P
+  L     1     2                      4               04 WHILE
+  L     1     4                     10               0A LOOP
+  C     1     0                     26               1A NOW_Y
+  C     1     0                      4               04 NOW_M
+  C     1     0                      8               08 NOW_D
+  C     1     0                  46120             B428 NOW_I
+   No macros.
+
+Program             :       12 words.
+Constants           :        0 words.
+Total program memory:       12 words.
+Eeprom space        :        0 bytes.
+Data segment        :        0 bytes.
+Compilation completed, no errors.
+Compilation ended 08.04.2026, 16:49:47

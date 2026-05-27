@@ -1,0 +1,114 @@
+; Exercício - Aula 15 - Timers
+
+;
+; Nesta atividade o objetivo é fazer um led piscar, com tempo toff e outro tempo ton, utilizando timers e um botão de liga e desliga.
+.include m328Pdef.inc
+.org 0x0000
+
+ldi  R16,low(RAMEND)    ; configura pilha em RAMEND
+out  SPL,R16
+ldi  R16,high(RAMEND)
+out  SPH,R16
+
+call  config_pins  				; chama subrotina config_pins
+call  config_timer 				; chama rotina de configuração do timer
+
+clr  R13                ; Limpa R13 = contador delay
+clr  R20                ; limpa R20 - registrador de controle de botão
+clr  R21                ; limpa R21 - registrador de controle de led
+clr  R22                ; constante R22 = 0
+ldi  R16,0xff
+mov  R14,R16            ; Escreve 0xff em R14 reg. de comparação delay
+
+wait:                      ; Espera botão ser apertado
+sbis pinb,3            	   ; Confere se porta b3 está apertada - no estado low
+rjmp filter_delay     		 ; "se" sim - vai para SR filter_delay
+sbrc r20,0            	   ; "se" botão não esta apertado, confere estado do led (R20 que indica se está piscando ou não)
+rjmp led_state        		 ; "se" estado do led é piscando então vai para led state
+rjmp wait                  ; "se" não - então volta para SR wait
+
+filter_delay:        ; Espera R14 ciclos de clock - 255 * Tclock
+inc   R13            ; Soma R12 (um) no contador R13
+cpse  R13,R14           ; Compara R13 - contagem atual com R14 - contagem máxima
+rjmp  filter_delay      ; "se" desigual retorna para filter_delay
+rjmp  filter_check_button      ; "se" igual então vai para check_button
+
+filter_check_button: ; Confere se o botão continua apertado
+clr   R13
+sbic  PINB,3           ; Confere se porta b3 está apertada - no estado low
+rjmp  wait              ; "se" não - então volta para SR wait
+rjmp  button            ; "se" sim - vai para SR button
+
+button:              ; Analisa a função do botão (iniciar ou parar blink)
+cpse  R20,R21           ; compara R20 e R21
+rjmp  led_off           ; "se" R20 = 1 led esta ligado e botão vai desligar vai para led_off
+rjmp  led_blink            ; "se" R20 = 0 o led esta desligado e o botão vai ligar, vai para led_blink
+
+led_off:             ; Rotina para desligar LED
+clr r16              ; Limpa R16
+out portd, r16         ; seta low nsa saida da porta D
+clr r20               ; Leva R20 para 0 - indicador que esta desligado
+rjmp filter_reset     ;Vai para filter_reset
+
+led_blink:            ; Rotina para ligar o LED
+inc r20               ; incrementa R20 -> 0x01
+rjmp filter_reset     ; vai para filter_reset
+
+filter_reset:       ; Filtro para confirmar que botão foi solto
+sbis  PINB,3          ; confere o estado do pino B3 o botão
+rjmp  filter_reset     ; "se" esta low - continua apertado - volta para filter_reset
+rjmp  wait             ; "se" esta high - foi solto - vai para wait
+
+led_state:               ; define o estado do led piscando
+sbrs r21,0                  ; confere estado do led r21
+rjmp led_blink_on                 ; "se" led esta off então liga led_blink_on
+rjmp led_blink_off                  ; "se" led esta on então desliga led_blink_off
+
+led_blink_on:          ; liga led
+ser r16              ; seta R16
+out portd,r16         ; seta high nsa saida da porta D
+inc r21               ; incrementa R21 - indica que led foi ligado
+clr r16               ; Limpa R16
+sts TCNT1L, r16       ; Limpa timer 1
+sts TCNT1H, r16
+--- ---               ; Ajusta comparação do timer - tempo on
+rjmp wait_blink        ; vai para wait_blink
+
+led_blink_off:         ; desliga led
+clr r16              ; Limpa R16
+out portd, r16         ; seta low nsa saida da porta D
+dec r21               ; decrementa R21 - indica que led foi desligado
+clr r16                ; Limpa R16
+sts TCNT1L, r16         ;Limpar o timer 1L
+sts TCNT1H, r16         ;Limpar o timer 1H
+--- ---                  ; Ajusta comparação do timer - tempo off
+rjmp wait_blink         ; vai para wait_blink
+
+wait_blink:            ; espera led para piscar
+lds r16, TCNT1H         ; leitura to tcnt1H
+--- ---             ; compara com tempo
+brlo wait_blink        ; "se" não passou tempo volta para wait_blink
+rjmp wait              ; "se" passou o tempo volta para wait
+
+config_pins:    ; configuras as portas IO
+clr	R16             ; limpa R16
+out	DDRB,R16	    ; configura porta B como entrada
+ser	R16             ; Seta R16
+out	DDRD,R16	    ; configura porta D como saida
+out	PORTB,R16	    ; ativa pull-up em porta B
+clr	R16				; Limpa R16
+out	PORTD,R16	    ; limpa a porta D para saída - estado inicial desliga led
+ret                 ; retorna para call
+
+config_timer:
+clr r16
+sts  TCCR1A,r16             ;Configura modo normal sem portas OC
+ldi r16, 0b00000101;
+sts TCCR1B, r16             ;Configura clk com prescaler de 1024
+clr r16                    ; Limpar R16
+sts TCNT1L, r16             ;Limpar o timer 1H
+sts TCNT1H, r16          ;Limpar o timer 1H
+sts OCR1AL, r16             ;Ajusta o comparador A low do timer 1 para 0
+ldi r16, 0x10               ; Ajusta R16 para 10
+sts OCR1AH, r16             ;Ajusta o comparador A high do timer 1 para 10
+ret

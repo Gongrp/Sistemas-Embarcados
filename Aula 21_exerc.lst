@@ -1,0 +1,173 @@
+gavrasm Gerd's AVR assembler version 5.4 (C)2022 by DG4FAC
+----------------------------------------------------------
+
+Path:        C:\Documents\ufrgs\7° Semestre\Embarcados\
+Source file: Aula 21_exerc.asm
+Hex file:    Aula 21_exerc.hex
+Eeprom file: Aula 21_exerc.eep
+Compiled:    27.05.2026, 12:22:54
+Pass:        2
+
+     1: ; Aula 21 - Conversor A/D - Exercício
+     2: 
+     3: 
+     4: ; Nesta atividade, um botão configurado com interrupt INT0 inicia uma rampa de incremento de luminosidade de LED. O tempo para a rampa ser
+     5: ; executada vai de zero a 17s e será controlado por um potenciômetro externo conectado a uma porta do ADC.
+     6: 
+     7: 
+     8: .include m328Pdef.inc
+ -> Warning 009: Include defs not necessary, using internal values!
+   File: C:\Documents\ufrgs\7° Semestre\Embarcados\Aula 21_exerc.asm, Line: 8
+   Source line: .include m328Pdef.inc
+     9: .org 0x0000
+    10: 000000   C002  rjmp	config		;vai para SR config
+    11: .org 0x0002
+    12: 000002   C033  rjmp    ISR_ext_int0
+    13: 
+    14: ;.org x0034   ;garante que codigo não sobrepõe nenhum vetor de Interrupt.
+    15: 
+    16: config:
+    17: ;configura pilha
+    18: 000003   EF0F  ldi    R16,low(RAMEND)
+    19: 000004   BF0D  out    SPL,R16
+    20: 000005   E008  ldi    R16,high(RAMEND)
+    21: 000006   BF0E  out    SPH,R16
+    22: 
+    23: ;configura constantes iniciais
+    24: 000007   2700  clr    R16
+    25: 000008   2EA0  mov    R10,R16  ; R10 - registrador dedicado a guardar intensidade do LED.
+    26: 000009   2744  clr    R20       ;Define uma contante zero
+    27: 
+    28: ;configura portas digitais B como saida - depurador
+    29: 00000A   EF0F  ldi    R16,0xff
+    30: 00000B   B904  out    DDRB,R16
+    31: 00000C   2700  clr    R16
+    32: 00000D   B905  out    PORTB,R16; Inicializa todos os pinos em 0
+    33: 
+    34: ;configura porta digital D2 - Botão
+    35: 00000E   E000  ldi    R16,0b00_00_00_00
+    36: 00000F   B90A  out    DDRD,r16	     ;configura PD2 com botão.
+    37: 000010   E004  ldi    r16,0b00000_1_00
+    38: 000011   B90B  out    PORTD,r16    ;configura porta D entrada 2 como pullup.
+    39: 
+    40: ;configura timer0 delay para deboucing
+    41: 000012   E000  ldi    R16,0b00_00_00_00
+    42: 000013   BD04  out    TCCR0A,R16            ;Configura modo normal = delay
+    43: 000014   E002  ldi    R16,0b00_00_0_010
+    44: 000015   BD05  out    TCCR0B,R16            ;Configura clk com prescaler de PS64 = 011 ou PS8 = 010.
+    45: 
+    46: ;configura timer1 delay rampa PWM
+    47: 000016   E000  ldi    R16,0b00_00_00_00
+    48: 000017   9300  sts    TCCR1A,R16            ;Configura modo normal
+        000018   0080
+    49: 000019   E003  ldi    R16,0b00_00_0_011
+    50: 00001A   9300  sts    TCCR1B,R16            ;Configura clk com  PS64 = 011
+        00001B   0081
+    51: 
+    52: ;configura timer2 pwm - comparador B - PD3
+    53: 00001C   EA03  ldi    r16, 0b10_10_00_11
+    54: 00001D   9300  sts    TCCR2A,R16            ;Configura modo FPWM
+        00001E   00B0
+    55: 00001F   E006  ldi    r16, 0b00_0_00_110
+    56: 000020   9300  sts    TCCR2B,R16            ;Configura clk com prescaler de 256 = ~240Hz = 110 ou PS32 = ~1450 Hz = 011
+        000021   00B1
+    57: 000022   E800  ldi    R16,0x80
+    58: 000023   9300  sts    OCR2B,r16             ;configura valor inicial para duty cicle
+        000024   00B4
+    59: 
+    60: ;configura interrupt INT0
+    61: 000025   E002  ldi    R16,0b0000_00_10
+    62: 000026   9300  sts    EICRA,R16             ;configura o INT0 como falling edge
+        000027   0069
+    63: 000028   E001  ldi    R16,0b000000_0_1
+    64: 000029   BB0D  out    EIMSK,R16             ;habilita o interrupt in INT0
+    65: 00002A   9478  sei
+    66: 
+    67: ;configura ADC
+    68: 00002B   E601  ldi    r16,0b01_1_0_0001
+    69: 00002C   9300  sts    ADMUX,r16             ; configura Vref = Vcc, Justifica para esquerda (8bits), Mux no ch 1.
+        00002D   007C
+    70: 00002E   EE05  ldi    r16,0b1_1_1_00_101
+    71: 00002F   9300  sts    ADCSRA,r16           ; configura ADC on, inicia conversão no ADSC, usa autotrigger, e prescaler 32x
+        000030   007A
+    72: 000031   E000  ldi    r16,0b0_0_000_000
+    73: 000032   9300  sts    ADCSRB,r16            ; configura autotrigger em free running
+        000033   007B
+    74: 
+    75: ;inicia loop de espera botão
+    76: wait_interrupt:    ; SR para esperar o aperto do botão.
+    77: 000034   0000  nop
+    78: 000035   CFFE  rjmp   wait_interrupt   ;se D2 estiver normal (set) volta para check_buttom.
+    79: 
+    80: ISR_ext_int0:      ;interrupt com INT0 em falling edge
+    81: 000036   2700  clr    R16
+    82: 000037   BD06  out    TCNT0,R16         ; limpa timer0
+    83: 000038   C000  rjmp   buttom_debouncig
+    84: 
+    85: buttom_debouncig: ; Espera um tempo para saber se o bot?o realmente foi apertado - deboucing filter - falling edge.
+    86: ;espera um tempo de deboucing
+    87: 000039   B506  in    R16,TCNT0    ;carrega o timer 0.
+    88: 00003A   370D  cpi   R16,0x7D     ;tempo de espera para filtro do botão - deboucing. Com PS de 64, 500 us são necessários 125=x7D clock de timer
+    89: 00003B   F7E9  brne  buttom_debouncig ;se diferente volta para buttom_debouncing.
+    90: ;confirma se botão ainda esta apertado
+    91: 00003C   994A  sbic   PIND,2   ; confere D2.
+    92: 00003D   9518  reti   ;se estiver normal volta para wait_interrupt.
+    93: 00003E   C000  rjmp   read_adc
+    94: 
+    95: read_adc:
+    96: 00003F   E718  ldi    r17,ADCL
+    97: 000040   E719  ldi    r17,ADCH     ;nesse caso damos overwrite pois só consideraremos os 8 bits mais significativos (ADC9:2)
+    98: 000041   9516  lsr    R17          ; divide adc por 2
+    99: 000042   9516  lsr    R17          ; divide adc por 2 - para ajustar a escala ADC = 0 --> tempo 0 e ADC = 256 --> tempo = 64 --> 0x40 = ~17s na comparação
+   100: ; high e com PS de 64 do timer 1
+   101: 000043   C000  rjmp   ramp_pwm
+   102: 
+   103: ramp_pwm:
+   104: 000044   94A3  inc   R10         ; Increvementa R10 - nível de intensidade luminosa - duty cycle.
+   105: 000045   92A0  sts   OCR2B,R10    ; envia R10 para duty cicle - comparador
+        000046   00B4
+   106: ;depurador
+   107: 000047   B8A5  out    PORTB,R10
+   108: ;depurador
+   109: 000048   12A4  cpse   R10,R20     ; compara R10 com zero - para saber quando voltar para o inicio.
+   110: 000049   10AA  cpse   R10,R10     ;
+   111: 00004A   9518  reti               ; se R10 = 0 volta para wait_interrupt
+   112: 00004B   2700  clr    r16
+   113: 00004C   9300  sts    TCNT1H,r16   ;limpa o timer 1H
+        00004D   0085
+   114: 00004E   9300  sts    TCNT1L,r16     ;limpa o timer 1L
+        00004F   0084
+   115: 000050   C000  rjmp  wait_ramp
+   116: 
+   117: wait_ramp:
+   118: 000051   9100  lds   R16,TCNT1L
+        000052   0084
+   119: 000053   9100  lds   R16,TCNT1H  ; carrega timer 1
+        000054   0085
+   120: 000055   1701  cp    R16,R17      ; tempo de espera para avançar rampa de PWM.
+   121: 000056   F369  breq  ramp_pwm     ; se igual segue o código para ramp_pwm e incrementar novamente o DC.
+   122: 000057   CFF9  rjmp  wait_ramp   ; se diferente volta para wait_ramp
+
+List of symbols:
+Type nDef nUsed             Decimalval           Hexval Name
+  T     1     1                    171               AB ATMEGA328P
+  L     1     2                      3               03 CONFIG
+  L     1     2                     52               34 WAIT_INTERRUPT
+  L     1     2                     54               36 ISR_EXT_INT0
+  L     1     4                     57               39 BUTTOM_DEBOUNCIG
+  L     1     2                     63               3F READ_ADC
+  L     1     4                     68               44 RAMP_PWM
+  L     1     4                     81               51 WAIT_RAMP
+  C     1     0                     26               1A NOW_Y
+  C     1     0                      5               05 NOW_M
+  C     1     0                     27               1B NOW_D
+  C     1     0                  46169             B459 NOW_I
+   No macros.
+
+Program             :       87 words.
+Constants           :        0 words.
+Total program memory:       87 words.
+Eeprom space        :        0 bytes.
+Data segment        :        0 bytes.
+Compilation completed, no errors.
+Compilation ended 27.05.2026, 12:22:54

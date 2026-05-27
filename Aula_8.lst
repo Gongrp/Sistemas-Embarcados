@@ -1,0 +1,80 @@
+gavrasm Gerd's AVR assembler version 5.4 (C)2022 by DG4FAC
+----------------------------------------------------------
+
+Path:        C:\Documents\ufrgs\7° Semestre\Embarcados\
+Source file: Aula_8.asm
+Hex file:    Aula_8.hex
+Eeprom file: Aula_8.eep
+Compiled:    30.03.2026, 12:27:41
+Pass:        2
+
+     1: ;
+     2: ; ***********************************
+     3: ; * (Add program task here)         *
+     4: ; * (Add AVR type and version here) *
+     5: ; * (C)2021 by Gerhard Schmidt      *
+     6: ; ***********************************
+     7: ;
+     8: .nolist
+    11: ;
+    12: 
+    13: .cseg
+    14: .org 000000
+    15: 
+    16: ;Operação: 1,5 ∙ 0,75 + 3 . (0,25) = 1,875 (Tudo sem sinal, não precisa se preocupar com C2)
+    17: 
+    18: ;I)Primeiro produto (1,5.0,75 = 1,125)
+    19: 000000   EC00  ldi        R16, 0xC0;
+    20: 000001   E610  ldi        R17, 0x60;
+    21: 000002   0309  fmul       R16,R17;
+    22: 000003   0110  movw       R2,R0;  Salvando ambos os bits do produto em R3:R2
+    23: 
+    24: ;II)Segundo produto  (3.0,25 = 0,75)
+    25: 000004   E220  ldi         R18, 0x20;
+    26: 000005   E830  ldi         R19, 0x80; LSB de 0d3 (1 x 2^0 = 1)
+    27: 000006   E041  ldi         R20, 0x01; MSB de 0d3 (1 x 2^1 = 2)
+    28: 000007   033A  fmul        R19, R18;
+    29: 000008   0120  movw        R4,R0;  (R5:R4 < - Resultado da multiplicação 1 x 0,25)
+    30: 000009   034A  fmul        R20,R18;
+    31: 00000A   0C50  add         R5, R0;
+    32: 00000B   2466  clr         R6;
+    33: 00000C   1C61  adc         R6,R1; Produto final em R6:R5:R4 (R5 está no mesmo nível que R3 do outro termo)
+    34: 
+    35: ;III) Somando os dois termos em R6:R5 (1,125 + 0,75 = 1,875 (F0))
+    36: 00000D   0C53  add         R5, R3;
+    37: 00000E   2477  clr         R7;
+    38: 00000F   1C67  adc         R6, R7;
+    39: 
+    40: 
+    41: 
+    42: 
+    43: 
+    44: 
+    45: 
+    46: Loop:
+    47: 000010   CFFF  rjmp loop
+    48: ;
+    49: ; End of source code
+    50: ;
+    51: ; (Add Copyright information here, e.g.
+    52: ; .db "(C)2021 by Gerhard Schmidt  " ; Source code readable
+    53: ; .db "C(2)20 1ybG reahdrS hcimtd  " ; Machine code format
+    54: ;
+
+List of symbols:
+Type nDef nUsed             Decimalval           Hexval Name
+  T     1     1                    171               AB ATMEGA328P
+  L     1     2                     16               10 LOOP
+  C     1     0                     26               1A NOW_Y
+  C     1     0                      3               03 NOW_M
+  C     1     0                     30               1E NOW_D
+  C     1     0                  46111             B41F NOW_I
+   No macros.
+
+Program             :       17 words.
+Constants           :        0 words.
+Total program memory:       17 words.
+Eeprom space        :        0 bytes.
+Data segment        :        0 bytes.
+Compilation completed, no errors.
+Compilation ended 30.03.2026, 12:27:41

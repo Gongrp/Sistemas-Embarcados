@@ -1,0 +1,93 @@
+gavrasm Gerd's AVR assembler version 5.4 (C)2022 by DG4FAC
+----------------------------------------------------------
+
+Path:        C:\Documents\ufrgs\7° Semestre\Embarcados\
+Source file: Aula 12 - Exemplo.asm
+Hex file:    Aula 12 - Exemplo.hex
+Eeprom file: Aula 12 - Exemplo.eep
+Compiled:    09.04.2026, 19:50:54
+Pass:        2
+
+     1: ; Exemplo - Aula 12 - Portas digitais
+     2: 
+     3: ; Programa para leitura dos dados das portas B e D, soma entre eles e seta o pino 0 da porta C caso a soma for superior a 100.
+     4: 
+     5: .include "m328Pdef.inc"
+ -> Warning 009: Include defs not necessary, using internal values!
+   File: C:\Documents\ufrgs\7° Semestre\Embarcados\Aula 12 - Exemplo.asm, Line: 5
+   Source line: .include "m328Pdef.inc"
+     6: 
+     7: .cseg
+     8: .org 0x0000
+     9: 
+    10: 000000   EF0F  ldi  R16,low(RAMEND)
+    11: 000001   BF0D  out  SPL,R16
+    12: 000002   E008  ldi  R16,high(RAMEND)
+    13: 000003   BF0E  out  SPH,R16
+    14: 000004   940E  call conf_DPorts
+        000005   0011
+    15: 000006   C000  rjmp main
+    16: 
+    17: main:
+    18: 000007   940E  call read_DPorts
+        000008   0019
+    19: 000009   940E  call soma
+        00000A   001C
+    20: 00000B   F090  brcs write_one
+    21: 00000C   3604  cpi  R16,0x64
+    22: 00000D   F480  brsh write_one
+    23: 00000E   940E  call write_zero
+        00000F   0020
+    24: 000010   CFF6  rjmp main
+    25: 
+    26: conf_DPorts:
+    27: 000011   2700  clr	  R16          ; Zera o R16
+    28: 000012   B904  out 	DDRB,R16     ; Configura porta B como entrada
+    29: 000013   B90A  out 	DDRD,R16     ; Configura porta D como entrada
+    30: 000014   EF0F  ser 	R16          ; Coloca em 1 os bits do R16
+    31: 000015   B905  out 	PORTB,R16    ; Aciona os resitores de Pull-up da porta B
+    32: 000016   B90B  out 	PORTD,R16    ; Aciona os resitores de Pull-up da porta D
+    33: 000017   9A38  sbi 	DDRC,0       ; Configura pino 0 da porta C como saída
+    34: 000018   9508  ret
+    35: 
+    36: read_DPorts:
+    37: 000019   B103  in	R16,PINB
+    38: 00001A   B119  in 	R17,PIND
+    39: 00001B   9508  ret
+    40: 
+    41: soma:
+    42: 00001C   0F01  add  R16,R17
+    43: 00001D   9508  ret
+    44: 
+    45: write_one:
+    46: 00001E   9A40  sbi  PORTC,0
+    47: 00001F   CFE7  rjmp main
+    48: 
+    49: write_zero:
+    50: 000020   9840  cbi  PORTC,0
+    51: 000021   9508  ret
+    52: 
+    53: 
+
+List of symbols:
+Type nDef nUsed             Decimalval           Hexval Name
+  T     1     1                    171               AB ATMEGA328P
+  L     1     6                      7               07 MAIN
+  L     1     1                     17               11 CONF_DPORTS
+  L     1     1                     25               19 READ_DPORTS
+  L     1     1                     28               1C SOMA
+  L     1     4                     30               1E WRITE_ONE
+  L     1     1                     32               20 WRITE_ZERO
+  C     1     0                     26               1A NOW_Y
+  C     1     0                      4               04 NOW_M
+  C     1     0                      9               09 NOW_D
+  C     1     0                  46121             B429 NOW_I
+   No macros.
+
+Program             :       34 words.
+Constants           :        0 words.
+Total program memory:       34 words.
+Eeprom space        :        0 bytes.
+Data segment        :        0 bytes.
+Compilation completed, no errors.
+Compilation ended 09.04.2026, 19:50:54
