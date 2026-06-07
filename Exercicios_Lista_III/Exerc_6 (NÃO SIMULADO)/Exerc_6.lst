@@ -1,0 +1,212 @@
+gavrasm Gerd's AVR assembler version 5.4 (C)2022 by DG4FAC
+----------------------------------------------------------
+
+Path:        C:\Users\gongr\OneDrive\Documentos\GitHub\Sistemas-Embarcados\Exercicios_Lista_III\Exerc_6\
+Source file: Exerc_6.asm
+Hex file:    Exerc_6.hex
+Eeprom file: Exerc_6.eep
+Compiled:    07.06.2026, 18:54:09
+Pass:        2
+
+     1: ;6)Crie um programa em assembly que faça a leitura do sinal proveniente
+     2: ;de um sensor de temperatura LM35 com 8 bits, conforme o circuito da Figura 2 e
+     3: ;faça a média simples dos últimos 8 valores medidos (filtro média-móvel sem
+     4: ;superposição de amostras). De acordo com o valor da média o sistema deve realizar
+     5: ;as seguintes funções:
+     6: 
+     7: ;a)Se o valor médio for superior ou igual a 0x15 (aproximadamente 40ºC),
+     8: ;um cooler deve ser acionado através de um sinal PWM gerado no comparador A do
+     9: ;timer0 com fator de trabalho de 75%
+    10: ;(valor do registrador do comparador OCR0A deve ser ajustado em 0xBF – modo fast PWM, non-inverting)
+    11: 
+    12: ;b)Se o valor médio for inferior a 0x15 (aproximadamente 40ºC) e superior ou igual
+    13: ;a 0x0F (aproximadamente 30ºC), o cooler deve ser acionado através de um sinal
+    14: ;PWM com fator de trabalho de 50% (valor do registrador do comparador OCR0A
+    15: ;deve ser ajustado em 0x80 – modo fast PWM, non-inverting)
+    16: 
+    17: ;c)Se o valor médio for inferior a 0x0F (aproximadamente 30ºC), o cooler deve ser
+    18: ;desligado (saída do comparador A do timer0 desconectado ou fator de trabalho
+    19: ;ajustado em 0%).
+    20: 
+    21: ;Dica: programe o ADC para operar no modo single convertion com prescaler de 32x.
+    22: ;Programe o timer0 com prescaler de 32x para ajuste da frequência do PWM.
+    23: 
+    24: 
+    25: 
+    26: .include m328Pdef.inc
+ -> Warning 009: Include defs not necessary, using internal values!
+   File: C:\Users\gongr\OneDrive\Documentos\GitHub\Sistemas-Embarcados\Exercicios_Lista_III\Exerc_6\Exerc_6.asm, Line: 26
+   Source line: .include m328Pdef.inc
+    27: 
+    28: config:
+    29: ;configura pilha
+    30: 000000   EF0F  ldi    R16,low(RAMEND)
+    31: 000001   BF0D  out    SPL,R16
+    32: 000002   E008  ldi    R16,high(RAMEND)
+    33: 000003   BF0E  out    SPH,R16
+    34: 
+    35: ;constantes iniciais:
+    36: 000004   E008  ldi    r16,0x08
+    37: 000005   2EC0  mov    r12,r16      ;Registra o número de amostras antes de cada média
+    38: 000006   2722  clr    r18          ;Registrador de amostras coletadas
+    39: 000007   2733  clr    r19
+    40: 000008   2744  clr    r20          ;Registradores que acumulam a soma (R20:R19)
+    41: 000009   2755  clr    r21          ;Registrador auxiliar para soma com carry
+    42: 
+    43: 00000A   D033  rcall  config_pins
+    44: 00000B   D039  rcall   config_adc
+    45: 00000C   D042  rcall   config_pwm
+    46: 
+    47: loop:
+    48: 00000D   9100  lds    r16,ADCSRA
+        00000E   007A
+    49: 00000F   6400  ori    r16,(1<<ADSC)
+    50: 000010   9300  sts    ADCSRA,r16 ;Seta o bit ADSC para iniciar conversão, sem influenciar os outros
+        000011   007A
+    51: 000012   C000  rjmp   wait_adc
+    52: 
+    53: wait_adc:
+    54: 000013   9100  lds     r16, ADCSRA
+        000014   007A
+    55: 000015   FD06  sbrc    r16, ADSC       ;Pula a próxima instrução se ADSC for 0 (terminou)
+    56: 000016   CFFC  rjmp    wait_adc        ;Se ainda for 1, continua esperando
+    57: 
+    58: 000017   9110  lds     r17,ADCH        ;Faz a leitura do valor do ADC
+        000018   0079
+    59: 000019   0F31  add     r19,r17
+    60: 00001A   1F45  adc     r20,r21         ;Acumula resultado
+    61: 00001B   9523  inc     r18
+    62: 00001C   112C  cpse    r18,r12         ;Repete aquisição enquanto não tiver 8 amostras
+    63: 00001D   CFEF  rjmp    loop
+    64: 00001E   2722  clr     r18             ;Reseta para zero aquisições para próximo loop
+    65: 
+    66: average:
+    67: 
+    68: 00001F   9546  lsr     r20
+    69: 000020   9537  ror     r19
+    70: 000021   9488  clc
+    71: 000022   9546  lsr     r20
+    72: 000023   9537  ror     r19
+    73: 000024   9488  clc
+    74: 000025   9546  lsr     r20
+    75: 000026   9537  ror     r19
+    76: 000027   9488  clc                     ; Executa divisão por 8. Resultado da média ficará apenas em r19
+    77: 
+    78: compare_average:
+    79: 000028   3135  cpi     r19,0x15
+    80: 000029   F418  brsh    mode_1
+    81: 00002A   303F  cpi     r19,0x0F
+    82: 00002B   F430  brsh    mode_2
+    83: 00002C   C00A  rjmp    mode_3
+    84: 
+    85: mode_1:
+    86: 00002D   D028  rcall  enable_comparator     ;Conecta comparador A
+    87: 00002E   EB0F  ldi    r16,0xBF
+    88: 00002F   BD07  out    OCR0A,r16         ;Ativa cooler com duty cycle de 75%
+    89: 000030   B905  out    PORTB,r16         ;depurador
+    90: 000031   C00A  rjmp   reset
+    91: 
+    92: mode_2:
+    93: 000032   D023  rcall  enable_comparator    ;Conecta comparador A
+    94: 000033   E800  ldi    r16,0x80
+    95: 000034   BD07  out    OCR0A,r16         ;Ativa cooler com duty cycle de 50%
+    96: 000035   B905  out    PORTB,r16         ;depurador
+    97: 000036   C005  rjmp   reset
+    98: 
+    99: mode_3:
+   100: 000037   D024  rcall  disable_comparator    ;Desconecta o comparador A
+   101: 000038   2700  clr    r16
+   102: 000039   BD07  out    OCR0A,r16
+   103: 00003A   B905  out    PORTB,r16         ;depurador
+   104: 00003B   C000  rjmp   reset
+   105: 
+   106: 
+   107: reset:
+   108: 00003C   2733  clr   r19                ;Zera o registrador da média para próximo loop
+   109: 00003D   CFCF  rjmp loop
+   110: 
+   111: 
+   112: config_pins:
+   113: ;Configura depurador
+   114: 00003E   EF0F  ldi      R16,0xff
+   115: 00003F   B904  out      DDRB,R16
+   116: 000040   2700  clr      R16
+   117: 000041   B905  out      PORTB,R16
+   118: ;final configuração depurador
+   119: 000042   E400  ldi      r16,0b0100_0000
+   120: 000043   B90A  out      DDRD,r16       ;Seta PD6 como saída (sinal PWM do cooler)
+   121: 000044   9508  ret
+   122: 
+   123: config_adc:    ;CH.1
+   124: 000045   E601  ldi      r16,0b01_1_0_0001
+   125: 000046   9300  sts      ADMUX,r16             ;Configura ADC com referência em VCC, justificado para a esquerda (8 bits) e no ch.1
+        000047   007C
+   126: 000048   E805  ldi      r16,0b1_0_0_00_101      ;Dá enable no ADC, mas não inicia conversão e desabilita auto-trigger (modo single-conversion); PS32
+   127: 000049   9300  sts      ADCSRA,r16
+        00004A   007A
+   128: 00004B   2700  clr      r16
+   129: 00004C   9300  sts      ADCSRB,r16             ;Na prática, não seria necessário configurar o ADSRB no modo single conversion
+        00004D   007B
+   130: 00004E   9508  ret
+   131: 
+   132: config_pwm: ;timer0
+   133: 00004F   E002  ldi      r16,0b00_00_00_10
+   134: 000050   BD04  out      TCCR0A,r16            ;Inicia comparador A desabilitado (cooler desligado) e ajusta fast PWM
+   135: 000051   E003  ldi      r16,0b00000_011       ;Ajusta PS 64
+   136: 000052   BD05  out      TCCR0B,r16
+   137: 000053   2700  clr      r16
+   138: 000054   BD07  out      OCR0A,r16
+   139: 000055   9508  ret
+   140: 
+   141: 
+   142: enable_comparator:
+   143: 000056   9100  lds   r16,TCCR0A
+        000057   0024
+   144: 000058   6800  ori   r16,(1<<COM0A1)
+   145: 000059   9300  sts   TCCR0A,r16
+        00005A   0024
+   146: 00005B   9508  ret
+   147: 
+   148: disable_comparator:
+   149: 00005C   9100  lds   r16,TCCR0A
+        00005D   0024
+   150: 00005E   6000  ori   r16,(0<<COM0A1)
+   151: 00005F   9300  sts   TCCR0A,r16
+        000060   0024
+   152: 000061   9508  ret
+   153: 
+   154: 
+   155: 
+   156: 
+   157: 
+
+List of symbols:
+Type nDef nUsed             Decimalval           Hexval Name
+  T     1     1                    171               AB ATMEGA328P
+  L     1     0                      0               00 CONFIG
+  L     1     4                     13               0D LOOP
+  L     1     4                     19               13 WAIT_ADC
+  L     1     0                     31               1F AVERAGE
+  L     1     0                     40               28 COMPARE_AVERAGE
+  L     1     2                     45               2D MODE_1
+  L     1     2                     50               32 MODE_2
+  L     1     2                     55               37 MODE_3
+  L     1     6                     60               3C RESET
+  L     1     2                     62               3E CONFIG_PINS
+  L     1     2                     69               45 CONFIG_ADC
+  L     1     2                     79               4F CONFIG_PWM
+  L     1     4                     86               56 ENABLE_COMPARATOR
+  L     1     2                     92               5C DISABLE_COMPARATOR
+  C     1     0                     26               1A NOW_Y
+  C     1     0                      6               06 NOW_M
+  C     1     0                      7               07 NOW_D
+  C     1     0                  46180             B464 NOW_I
+   No macros.
+
+Program             :       98 words.
+Constants           :        0 words.
+Total program memory:       98 words.
+Eeprom space        :        0 bytes.
+Data segment        :        0 bytes.
+Compilation completed, no errors.
+Compilation ended 07.06.2026, 18:54:09

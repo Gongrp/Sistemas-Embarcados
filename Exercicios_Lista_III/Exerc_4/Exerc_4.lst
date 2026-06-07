@@ -1,0 +1,106 @@
+gavrasm Gerd's AVR assembler version 5.4 (C)2022 by DG4FAC
+----------------------------------------------------------
+
+Path:        C:\Users\gongr\OneDrive\Documentos\GitHub\Sistemas-Embarcados\Exercicios_Lista_III\Exerc_4\
+Source file: Exerc_4.asm
+Hex file:    Exerc_4.hex
+Eeprom file: Exerc_4.eep
+Compiled:    07.06.2026, 13:02:54
+Pass:        2
+
+     1: ;4. Monte um programa que gere um PWM na saída OC0A, cuja frequência pode ser
+     2: ;selecionada de forma externa em 4 diferentes opções, utilizando para isso os pinos
+     3: ;PB0 e PB1 e os pinos PB2:5 para escolher o Duty Cicle com 4 bits de resolução.
+     4: 
+     5: .include "m328Pdef.inc"
+ -> Warning 009: Include defs not necessary, using internal values!
+   File: C:\Users\gongr\OneDrive\Documentos\GitHub\Sistemas-Embarcados\Exercicios_Lista_III\Exerc_4\Exerc_4.asm, Line: 5
+   Source line: .include "m328Pdef.inc"
+     6: 
+     7: .cseg
+     8: .org 0x0000
+     9: 
+    10: ;Configuração do Stacker Pointer -> Define o SP no final da memória SRAM x08ff
+    11: 000000   EF0F  ldi	R16,LOW(RAMEND)
+    12: 000001   BF0D  out	SPL,R16
+    13: 000002   E008  ldi	R16,HIGH(RAMEND)
+    14: 000003   BF0E  out	SPH,R16
+    15: 
+    16: ;Constantes
+    17: 000004   E002  ldi   r16,0x02 ;
+    18: 000005   2ED0  mov   r13,r16  ;Valor que será somado ao input de frequência para ajustar o Prescaler (00 -> 010 (8) ; 01 -> 011 (64) ; ...)
+    19: 000006   E111  ldi   r17,0x11          ;Carrega r17 com 17
+    20: 000007   D013  rcall config_pins
+    21: 000008   D015  rcall config_pwm
+    22: 
+    23: ;Registar valor inicial de PINB
+    24: 000009   B123  in    r18,PINB
+    25: 
+    26: read_inputs:
+    27: 00000A   B103  in    r16,PINB
+    28: 00000B   1302  cpse  r16,r18
+    29: 00000C   C001  rjmp  adjust_params ;Se houver diferença no valor anterior de PINB e no detectado, muda a configuração do PWM
+    30: 00000D   CFFC  rjmp  read_inputs   ;Se for igual ao anterior, não ajusta de novo, continua conferindo
+    31: 
+    32: adjust_params:
+    33: 
+    34: ;Ajuste de Duty Cycle
+    35: 00000E   2F40  mov   r20,r16
+    36: 00000F   734C  andi  r20,0b00_1111_00  ;Máscara mantém apenas os bits de configuração do Duty cycle (PB2:PB5)
+    37: 000010   9546  lsr   r20
+    38: 000011   9546  lsr   r20               ;Alinha o final com o bit zero (0:3)
+    39: 000012   9F41  mul   r20,r17           ;Ao multiplicar um valor em resolução de 4 bits por d17, chegamos a um valor em resolução de 8 bits -> 15 x 17 = 255)
+    40: ;O valor do ajuste estará armazenado em (R1:R0). Como terá no máximo 8 bits (255), na verdade apenas R0
+    41: 000013   2D40  mov   r20,r0
+    42: 
+    43: ;Ajuste de frequência
+    44: 000014   2F30  mov   r19,r16
+    45: 000015   7033  andi  r19,0b00_0000_11  ;Máscara mantém apenas os bits (PB0:PB1)
+    46: 000016   0D3D  add   r19,r13           ;Soma com constante (10) para converter da seleção de input direto pro código de PS correspondente
+    47: 
+    48: 
+    49: set_parameters:
+    50: 000017   BD35  out  TCCR0B,r19        ;Configura frequência (opções de PS 8, 64, 256 e 1024)
+    51: 000018   BD47  out  OCR0A,r20          ;Configura duty cycle (0-255)
+    52: 000019   2F20  mov  r18,r16           ;Registra novo ajuste como ajuste anterior para comparar no próximo ciclo
+    53: 00001A   CFEF  rjmp read_inputs       ;Reinicia ciclo
+    54: 
+    55: config_pins:
+    56: 00001B   2700  clr   r16
+    57: 00001C   B904  out   DDRB,r16; Configura toda a porta B como entrada
+    58: 00001D   9508  ret
+    59: 
+    60: config_pwm:
+    61: ;configurando timer 0
+    62: 00001E   E803  ldi   r16,0b10_00_00_11
+    63: 00001F   BD04  out   TCCR0A,r16          ;Configura modo FPWM e saída no modo não inversor no comparador A
+    64: 000020   E001  ldi   r16,0b00000_001
+    65: 000021   BD05  out   TCCR0B,r16          ;Começa com PS de 1 -> f_pwm = 16kHz / 255 ~ 62,7kHz
+    66: 000022   E800  ldi   r16,0x80
+    67: ;out   OCR0A,r16           ;Inicia valor do comparador em 50%
+    68: 000023   9508  ret
+    69: 
+    70: 
+    71: 
+
+List of symbols:
+Type nDef nUsed             Decimalval           Hexval Name
+  T     1     1                    171               AB ATMEGA328P
+  L     1     4                     10               0A READ_INPUTS
+  L     1     2                     14               0E ADJUST_PARAMS
+  L     1     0                     23               17 SET_PARAMETERS
+  L     1     2                     27               1B CONFIG_PINS
+  L     1     2                     30               1E CONFIG_PWM
+  C     1     0                     26               1A NOW_Y
+  C     1     0                      6               06 NOW_M
+  C     1     0                      7               07 NOW_D
+  C     1     0                  46180             B464 NOW_I
+   No macros.
+
+Program             :       36 words.
+Constants           :        0 words.
+Total program memory:       36 words.
+Eeprom space        :        0 bytes.
+Data segment        :        0 bytes.
+Compilation completed, no errors.
+Compilation ended 07.06.2026, 13:02:54

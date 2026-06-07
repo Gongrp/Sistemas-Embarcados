@@ -1,0 +1,94 @@
+gavrasm Gerd's AVR assembler version 5.4 (C)2022 by DG4FAC
+----------------------------------------------------------
+
+Path:        C:\Users\gongr\OneDrive\Documentos\GitHub\Sistemas-Embarcados\Exercicios_Lista_III\
+Source file: Exerc_1_b.asm
+Hex file:    Exerc_1_b.hex
+Eeprom file: Exerc_1_b.eep
+Compiled:    05.06.2026, 12:44:28
+Pass:        2
+
+     1: ;Monte um código que obtém uma palavra de 8 bits na porta D e guarda na memória
+     2: ;RAM de forma sequencial do primeiro endereço até o último, com os seguintes
+     3: ;gatilhos
+     4: 
+     5: 
+     6: ;b)a cada 10 ms usando um timer
+     7: 
+     8: .include "m328Pdef.inc"
+ -> Warning 009: Include defs not necessary, using internal values!
+   File: C:\Users\gongr\OneDrive\Documentos\GitHub\Sistemas-Embarcados\Exercicios_Lista_III\Exerc_1_b.asm, Line: 8
+   Source line: .include "m328Pdef.inc"
+     9: 
+    10: .cseg
+    11: .org 0x00
+    12: 
+    13: ; Configuração do Stacker Pointer -> Define o SP no final da memória SRAM x08ff
+    14: 000000   EF0F  ldi	R16,LOW(RAMEND)
+    15: 000001   BF0D  out	SPL,R16
+    16: 000002   E008  ldi	R16,HIGH(RAMEND)
+    17: 000003   BF0E  out	SPH,R16
+    18: 
+    19: ; Configuração do registrador X com o endereço 0x0100 (início da memória de dados)
+    20: 000004   E0A0  ldi XL,LOW(SRAM_START)
+    21: 000005   E0B1  ldi XH,HIGH(SRAM_START)
+    22: 
+    23: ;constantes iniciais
+    24: 000006   E90C  ldi     r16,0x9c
+    25: 000007   2EB0  mov     r11,r16; 156 (0x9C) é o num de contagens para delay entre salvamentos -> com PS1024 para delay de 10ms
+    26: 
+    27: 000008   D00A  rcall config_pins;
+    28: 000009   D00C  rcall config_timers; Após chamado já inicia o timer
+    29: 
+    30: wait_delay:
+    31: 00000A   B506  in      r16,TCNT0
+    32: 00000B   110B  cpse    r16,r11
+    33: 00000C   CFFD  rjmp    wait_delay; retorna para início enquanto não tiver passado o delay
+    34: 00000D   C000  rjmp    store_data; vai para SR de salvamento quando terminar o delay
+    35: 
+    36: 
+    37: store_data:
+    38: 00000E   B119  in      r17,PIND  ;salva valores de entrada da porta D
+    39: 00000F   931D  st      X+,r17    ;guarda valor de r17 no endereço da memória armazenado em X e o incrementa em uma unidade
+    40: 000010   2700  clr     R16
+    41: 000011   BD06  out     TCNT0,R16 ;zera timer para iniciar novo delay
+    42: 000012   CFF7  rjmp    wait_delay;retorna ao delay inicial
+    43: 
+    44: 
+    45: ;config_pins
+    46: config_pins:
+    47: 000013   2700  clr     r16
+    48: 000014   B90A  out     DDRD,r16; define porta D inteira como input
+    49: 000015   9508  ret
+    50: 
+    51: ;config_timers
+    52: config_timers:
+    53: ;configura timer0 - delay
+    54: 000016   E000  ldi   r16,0b0000_0000
+    55: 000017   BD04  out   TCCR0A,r16
+    56: 000018   E005  ldi   r16, 0b00_0_00_101 ; Define PS de 1024 (101)
+    57: 000019   BD05  out   TCCR0B, r16
+    58: 00001A   9508  ret
+    59: 
+    60: 
+
+List of symbols:
+Type nDef nUsed             Decimalval           Hexval Name
+  T     1     1                    171               AB ATMEGA328P
+  L     1     4                     10               0A WAIT_DELAY
+  L     1     2                     14               0E STORE_DATA
+  L     1     2                     19               13 CONFIG_PINS
+  L     1     2                     22               16 CONFIG_TIMERS
+  C     1     0                     26               1A NOW_Y
+  C     1     0                      6               06 NOW_M
+  C     1     0                      5               05 NOW_D
+  C     1     0                  46178             B462 NOW_I
+   No macros.
+
+Program             :       27 words.
+Constants           :        0 words.
+Total program memory:       27 words.
+Eeprom space        :        0 bytes.
+Data segment        :        0 bytes.
+Compilation completed, no errors.
+Compilation ended 05.06.2026, 12:44:28

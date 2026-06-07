@@ -1,0 +1,175 @@
+gavrasm Gerd's AVR assembler version 5.4 (C)2022 by DG4FAC
+----------------------------------------------------------
+
+Path:        C:\Users\gongr\OneDrive\Documentos\GitHub\Sistemas-Embarcados\Exercicios_Lista_III\Exerc_3\
+Source file: Exerc_3.asm
+Hex file:    Exerc_3.hex
+Eeprom file: Exerc_3.eep
+Compiled:    05.06.2026, 15:51:38
+Pass:        2
+
+     1: ;3. Monte um programa que faz aquisição continua da porta D (8 bits) a cada 1 ms, e
+     2: ;calcula a média móvel dos últimos 8 dados, apresentando o resultado de 8 bits nas
+     3: ;porta B (4 bits) e porta D (4 bits).
+     4: 
+     5: .include "m328Pdef.inc"
+ -> Warning 009: Include defs not necessary, using internal values!
+   File: C:\Users\gongr\OneDrive\Documentos\GitHub\Sistemas-Embarcados\Exercicios_Lista_III\Exerc_3\Exerc_3.asm, Line: 5
+   Source line: .include "m328Pdef.inc"
+     6: .org 0x00
+     7: 
+     8: .equ RAMSTART = 0X0100
+     9: 
+    10: ;configurando SP
+    11: 000000   EF0F  ldi R16,LOW(RAMEND)
+    12: 000001   BF0D  out	SPL,R16
+    13: 000002   E008  ldi	R16,HIGH(RAMEND)
+    14: 000003   BF0E  out	SPH,R16
+    15: 
+    16: ; Configuração do registrador X no início da SRAM
+    17: 000004   E0A0  ldi XL,low(RAMSTART)
+    18: 000005   E0B1  ldi XH,high(RAMSTART)
+    19: 
+    20: ; Configuração do registrador Y também no início da SRAM (percorrer os valores na hora da soma)
+    21: 000006   E0C0  ldi YL,low(RAMSTART)
+    22: 000007   E0D1  ldi YH,high(RAMSTART)
+    23: 
+    24: ;constantes iniciais e registradores
+    25: 000008   EF0A  ldi   r16,0xFA
+    26: 000009   2EC0  mov   r12,r16    ;250 contagens com PS64 para delay de 1ms
+    27: 
+    28: 00000A   E008  ldi   r16,0x08
+    29: 00000B   2ED0  mov   r13,r16    ;Constante oito para contagens
+    30: 
+    31: 00000C   2722  clr   r18        ;Constante zero para soma com carry e para zerar
+    32: 
+    33: 00000D   2733  clr   r19
+    34: 00000E   2744  clr   r20        ;Registradores para acumular a soma (R20:R19)
+    35: 
+    36: 00000F   2755  clr   r21        ;registrador para armazenar a quantidade de valores somados
+    37: 000010   2766  clr   r22        ;registrador para armazenar a quantidade de divisões por 2
+    38: 
+    39: 
+    40: 
+    41: 
+    42: 000011   D031  rcall config_pins
+    43: 000012   D03A  rcall config_timer
+    44: 
+    45: ;Dá clear em todos os endereços da RAM de 0x0100 até 0x0107
+    46: clear_ram:
+    47: 000013   932D  st    X+,r18
+    48: 000014   11AD  cpse  XL,r13
+    49: 000015   CFFD  rjmp  clear_ram
+    50: 000016   E0A0  ldi   XL, 0x00; Reseta para início da RAM
+    51: 000017   C000  rjmp  delay; Inicia código principal
+    52: 
+    53: 
+    54: delay:
+    55: 000018   B506  in    r16,TCNT0
+    56: 000019   110C  cpse  r16,r12
+    57: 00001A   CFFD  rjmp  delay
+    58: 00001B   C000  rjmp  get_data
+    59: 
+    60: get_data:
+    61: 00001C   B119  in    r17,PIND
+    62: 00001D   931D  st    X+,r17            ;Salva o valor de r17 de forma indireta
+    63: 00001E   13A2  cpse  XL,r18            ;Confere se o próximo valor seria armazenado em 0x0108, para reiniciar para a posição do primeiro
+    64: 00001F   C002  rjmp  sum               ;Se não, pula direto para a soma
+    65: 000020   E0A0  ldi   XL,low(RAMSTART) ;Reinicia endereçamento no começo da RAM
+    66: 000021   C000  rjmp  sum
+    67: 
+    68: sum:
+    69: 000022   9109  ld   r16,Y+             ;Resgata o primeiro valor na RAM e incrementa o apontador Y
+    70: 000023   0F30  add  r19,r16
+    71: 000024   1F42  adc  r20,r18 ;Tratamento do carry
+    72: 000025   9553  inc  r21
+    73: 000026   115D  cpse r21,r13 ;Confere se já foram somados 8 valores
+    74: 000027   CFFA  rjmp sum
+    75: 000028   C000  rjmp average; Se já tiver chegado em 8 somas, vai para calcular a média
+    76: 
+    77: average:
+    78: 000029   9546  lsr    r20
+    79: 00002A   9537  ror    r19
+    80: 00002B   9488  clc
+    81: 00002C   9563  inc    r22
+    82: 00002D   3063  cpi    r22,0x03
+    83: 00002E   F009  breq   show_result; se já tiver dividido por 2 3x vai para SR de exibir resultado
+    84: 00002F   CFF9  rjmp   average
+    85: 
+    86: show_result:
+    87: 000030   2F03  mov    r16,r19
+    88: 000031   700F  andi   r16, 0b0000_1111
+    89: 000032   B905  out    PORTB,r16          ;Filtra os 4 bits menos significativos do resultado e exibe na porta B
+    90: 
+    91: 000033   2F03  mov    r16,r19
+    92: 000034   7F00  andi   r16, 0b1111_0000
+    93: 000035   9506  lsr    r16
+    94: 000036   9506  lsr    r16
+    95: 000037   9506  lsr    r16
+    96: 000038   9506  lsr    r16             ;4 bit shifts para a direita para ficar nos 4 bits menos significativose exibir na porta C
+    97: 000039   B908  out    PORTC,r16
+    98: ;Obs.: Leitura do resultado de 8 bits -> PORTC(3:0):PORTB(3:0)
+    99: 00003A   C000  rjmp reset
+   100: 
+   101: reset:
+   102: ;reseta os registradores de contagem
+   103: 00003B   2755  clr    r21
+   104: 00003C   2766  clr    r22
+   105: ;reseta registradores da soma
+   106: 00003D   2733  clr    r19
+   107: 00003E   2744  clr    r20
+   108: ;reseta o LSB do apontador do valor a ser somado
+   109: 00003F   E0C0  ldi    YL, 0x00
+   110: ;reseta timer
+   111: 000040   2700  clr    r16
+   112: 000041   BD06  out    TCNT0,r16
+   113: 000042   CFD5  rjmp   delay; parte para a espera antes de registrar um novo valor
+   114: 
+   115: 
+   116: 
+   117: config_pins:
+   118: 000043   2700  clr   r16
+   119: 000044   B90A  out   DDRD,R16
+   120: 000045   B909  out   PIND,R16
+   121: 000046   EF0F  ser   r16
+   122: 000047   B904  out   DDRB,R16
+   123: 000048   B907  out   DDRC,R16
+   124: 000049   2700  clr   r16
+   125: 00004A   B905  out   PORTB,R16
+   126: 00004B   B908  out   PORTC,R16
+   127: 00004C   9508  ret
+   128: 
+   129: config_timer:
+   130: ;timer_0 para delay entre cada aquisição
+   131: 00004D   2700  clr   r16
+   132: 00004E   BD04  out   TCCR0A,r16; função normal de delay
+   133: 00004F   E003  ldi   r16,0b00000_011; PS de 64 (011)
+   134: 000050   BD05  out   TCCR0B,r16
+   135: 000051   9508  ret
+
+List of symbols:
+Type nDef nUsed             Decimalval           Hexval Name
+  T     1     1                    171               AB ATMEGA328P
+  L     1     2                     19               13 CLEAR_RAM
+  L     1     6                     24               18 DELAY
+  L     1     2                     28               1C GET_DATA
+  L     1     6                     34               22 SUM
+  L     1     4                     41               29 AVERAGE
+  L     1     2                     48               30 SHOW_RESULT
+  L     1     2                     59               3B RESET
+  L     1     2                     67               43 CONFIG_PINS
+  L     1     2                     77               4D CONFIG_TIMER
+  C     1     0                     26               1A NOW_Y
+  C     1     0                      6               06 NOW_M
+  C     1     0                      5               05 NOW_D
+  C     1     0                  46178             B462 NOW_I
+  C     1     5                    256             0100 RAMSTART
+   No macros.
+
+Program             :       82 words.
+Constants           :        0 words.
+Total program memory:       82 words.
+Eeprom space        :        0 bytes.
+Data segment        :        0 bytes.
+Compilation completed, no errors.
+Compilation ended 05.06.2026, 15:51:38

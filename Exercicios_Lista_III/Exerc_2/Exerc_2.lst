@@ -1,0 +1,175 @@
+gavrasm Gerd's AVR assembler version 5.4 (C)2022 by DG4FAC
+----------------------------------------------------------
+
+Path:        C:\Users\gongr\OneDrive\Documentos\AVR_Sim\
+Source file: Exerc_2.asm
+Hex file:    Exerc_2.hex
+Eeprom file: Exerc_2.eep
+Compiled:    05.06.2026, 14:36:32
+Pass:        2
+
+     1: ;2) Monte um programa, após apertado um botão, realiza 4 aquisições de palavras de 8
+     2: ;bits (4 bits na porta B e 4 bits na porta C), calcula a média aritmética e publica o
+     3: ;resultado na porta D.
+     4: 
+     5: .include "m328Pdef.inc"
+ -> Warning 009: Include defs not necessary, using internal values!
+   File: C:\Users\gongr\OneDrive\Documentos\AVR_Sim\Exerc_2.asm, Line: 5
+   Source line: .include "m328Pdef.inc"
+     6: .org 0x0000
+     7: 000000   C033  rjmp config_sp
+     8: 
+     9: .org 0X0002
+    10: 000002   C042  rjmp SR_int0; Vai para a SR de interrupção desencadeada pelo aperto do botão
+    11: 
+    12: .org 0x0034; Início do código principal
+    13: 
+    14: ;Inicializando SP
+    15: config_sp:
+    16: 000034   EF0F  ldi     r16, LOW(RAMEND)
+    17: 000035   BF0D  out     SPL,R16
+    18: 000036   E008  ldi     r16, HIGH(RAMEND)
+    19: 000037   BF0E  out     SPH,R16
+    20: 
+    21: ;constantes do programa
+    22: 000038   E70D  ldi     r16, 0x7D
+    23: 000039   2EB0  mov     r11,r16; Define constante de tempo de delay para debounce do botão (125 contagens com PS de 64 -> 500 mu_s)
+    24: 00003A   EF00  ldi     r16, 0b1111_0000
+    25: 00003B   2EC0  mov     r12,r16; Máscara para extrair apenas os 4 bits superiores com AND
+    26: 
+    27: 00003C   2733  clr     r19
+    28: 00003D   2744  clr     r20    ;Registradores para armazenar a soma acumulada e a média (apenas r19) dos 4 valores
+    29: 00003E   2755  clr     r21    ;Controla a quantidade de valores coletados
+    30: 00003F   2766  clr     r22    ;Constante zero
+    31: 
+    32: 000040   D028  rcall   config_pins
+    33: 000041   D031  rcall   config_timer
+    34: 000042   D035  rcall   config_int
+    35: 
+    36: ; Fica nesse loop até que o botão seja apertado e ative a interrupção
+    37: wait_loop:
+    38: 000043   0000  nop
+    39: 000044   CFFE  rjmp   wait_loop
+    40: 
+    41: 
+    42: SR_int0:
+    43: 000045   2700  clr    r16
+    44: 000046   BD06  out    TCNT0,r16; reseta o timer 0
+    45: 000047   C000  rjmp   button_delay
+    46: 
+    47: button_delay:
+    48: 000048   B506  in    r16,TCNT0
+    49: 000049   110B  cpse  r16,r11
+    50: 00004A   CFFD  rjmp  button_delay
+    51: 00004B   C000  rjmp  button_check
+    52: 
+    53: button_check:
+    54: 00004C   994A  sbic  PIND,2
+    55: 00004D   9518  reti        ;Volta para onde a interrupção foi chamada se o botao não estiver mais pressionado
+    56: 00004E   C000  rjmp  button_reset
+    57: 
+    58: button_reset:
+    59: 00004F   9B4A  sbis  PIND,2
+    60: 000050   CFFE  rjmp  button_reset
+    61: 000051   C000  rjmp  get_data; Vai para a SR de receber os valores das portas B e D
+    62: 
+    63: get_data:
+    64: 
+    65: 000052   B113  in r17, PINB
+    66: 000053   B129  in r18, PIND
+    67: ;Extrair apenas os valores em PINB(4:7) e PIND(4:7)
+    68: 000054   211C  and r17,r12
+    69: 000055   9516  lsr r17
+    70: 000056   9516  lsr r17
+    71: 000057   9516  lsr r17
+    72: 000058   9516  lsr r17; 4 bits shifts para a direita de cada para valores ficarem no byte inferior -> Valor em R18:R17
+    73: 000059   212C  and r18,r12
+    74: 
+    75: sum:
+    76: 00005A   0F12  add r17,r18 ;sem chance de ter carry
+    77: 00005B   0F31  add r19,r17
+    78: 00005C   1F46  adc r20,r22 ; trata o carry
+    79: 
+    80: 00005D   9553  inc r21; Incrementa r21 para contabilizar um novo dado
+    81: 00005E   3054  cpi r21,0x04
+    82: 00005F   F009  breq average; vai para SR da média quando tiver coletado 4 valores
+    83: 000060   CFF1  rjmp get_data; Vai para o próximo fator caso contrário
+    84: 
+    85: average:
+    86: 000061   9546  lsr r20
+    87: 000062   9537  ror r19
+    88: 000063   9488  clc
+    89: 000064   9546  lsr r20
+    90: 000065   9537  ror r19
+    91: 000066   9488  clc
+    92: 000067   B938  out PORTC,r19 ;Exibe o resultado na porta C
+    93: 000068   9518  reti
+    94: 
+    95: 
+    96: ;config_pins
+    97: config_pins:
+    98: 
+    99: 000069   2700  clr   r16
+   100: 00006A   B904  out   DDRB,R16
+   101: 00006B   B90A  out   DDRD,R16; Define todas as portas B e D como entrada
+   102: 00006C   E004  ldi   r16, (1<<PIND2)
+   103: 00006D   B90B  out   PORTD,r16; Configura pullup no pino 2 da porta D para o botão (apenas os bits 4:7 das portas B e D serão usados para os vals de entrada)
+   104: 00006E   EF0F  ser   r16
+   105: 00006F   B907  out   DDRC,R16; Define toda a porta C como saída para exibir os resultados
+   106: 000070   2700  clr   r16
+   107: 000071   B908  out   PORTC,R16
+   108: 000072   9508  ret
+   109: 
+   110: ;configura timer 0 para debounce botão
+   111: config_timer:
+   112: 000073   E000  ldi    R16,0b00_00_00_00
+   113: 000074   BD04  out    TCCR0A,R16            ;Configura modo normal = delay
+   114: 000075   E003  ldi    R16,0b00_00_0_011
+   115: 000076   BD05  out    TCCR0B,R16            ;Configura clk com prescaler de PS64 = 011
+   116: 000077   9508  ret
+   117: 
+   118: ;configuração do INT0
+   119: config_int:
+   120: 000078   E002  ldi    R16,0b0000_00_10
+   121: 000079   9300  sts    EICRA,R16             ;configura o INT0 como falling edge
+        00007A   0069
+   122: 00007B   E001  ldi    R16,0b000000_0_1
+   123: 00007C   BB0D  out    EIMSK,R16             ;habilita o interrupt in INT0
+   124: 00007D   9478  sei
+   125: 00007E   9508  ret
+   126: 
+   127: 
+   128: 
+   129: 
+   130: 
+   131: 
+   132: 
+
+List of symbols:
+Type nDef nUsed             Decimalval           Hexval Name
+  T     1     1                    171               AB ATMEGA328P
+  L     1     2                     52               34 CONFIG_SP
+  L     1     2                     67               43 WAIT_LOOP
+  L     1     2                     69               45 SR_INT0
+  L     1     4                     72               48 BUTTON_DELAY
+  L     1     2                     76               4C BUTTON_CHECK
+  L     1     4                     79               4F BUTTON_RESET
+  L     1     4                     82               52 GET_DATA
+  L     1     0                     90               5A SUM
+  L     1     2                     97               61 AVERAGE
+  L     1     2                    105               69 CONFIG_PINS
+  L     1     2                    115               73 CONFIG_TIMER
+  L     1     2                    120               78 CONFIG_INT
+  C     1     0                     26               1A NOW_Y
+  C     1     0                      6               06 NOW_M
+  C     1     0                      5               05 NOW_D
+  C     1     0                  46178             B462 NOW_I
+   No macros.
+
+Program             :       77 words.
+Constants           :        0 words.
+Total program memory:       77 words.
+Eeprom space        :        0 bytes.
+Data segment        :        0 bytes.
+Compilation completed, no errors.
+Compilation ended 05.06.2026, 14:36:32

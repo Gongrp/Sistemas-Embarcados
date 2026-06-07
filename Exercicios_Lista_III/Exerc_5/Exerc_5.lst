@@ -1,0 +1,96 @@
+gavrasm Gerd's AVR assembler version 5.4 (C)2022 by DG4FAC
+----------------------------------------------------------
+
+Path:        C:\Users\gongr\OneDrive\Documentos\GitHub\Sistemas-Embarcados\Exercicios_Lista_III\Exerc_5 (DESCOBRIR PQ TRAVA NO WAIT)\
+Source file: Exerc_5.asm
+Hex file:    Exerc_5.hex
+Eeprom file: Exerc_5.eep
+Compiled:    07.06.2026, 17:39:20
+Pass:        2
+
+     1: ;5. Elaborar um programa para ler a tensão proveniente de um potenciômetro com o
+     2: ;ADC do ATmega328p (ver a fig. 1) com 8 bits. Apresente o valor binário na porta
+     3: ;D. Depois aumente a resolução do ADC para 10 bits e utilize dois pinos adicionais
+     4: ;da porta B.
+     5: 
+     6: ;Entrada analógica -> PC0
+     7: ;Saída em 8 bits -> porta D
+     8: 
+     9: .include m328Pdef.inc
+ -> Warning 009: Include defs not necessary, using internal values!
+   File: C:\Users\gongr\OneDrive\Documentos\GitHub\Sistemas-Embarcados\Exercicios_Lista_III\Exerc_5 (DESCOBRIR PQ TRAVA NO WAIT)\Exerc_5.asm, Line: 9
+   Source line: .include m328Pdef.inc
+    10: 
+    11: config:
+    12: ;configura pilha
+    13: 000000   EF0F  ldi    R16,low(RAMEND)
+    14: 000001   BF0D  out    SPL,R16
+    15: 000002   E008  ldi    R16,high(RAMEND)
+    16: 000003   BF0E  out    SPH,R16
+    17: 
+    18: 000004   D00D  rcall config_pins
+    19: 000005   D013  rcall config_adc
+    20: 
+    21: 
+    22: wait_adc:
+    23: 000006   9100  lds    r16, ADCSRA
+        000007   007A
+    24: 000008   FF06  sbrs   r16, ADSC         ; Pula e vai para a leitura se conversão estiver sendo realizada
+    25: 000009   CFFC  rjmp   wait_adc
+    26: 00000A   C000  rjmp   read_adc
+    27: 
+    28: 
+    29: read_adc:
+    30: 00000B   9110  lds    r17,ADCL  ;Leitura sempre começa por ADCL!
+        00000C   0078
+    31: 00000D   9120  lds    r18,ADCH
+        00000E   0079
+    32: 00000F   B91B  out    PORTD,r17 ;Exibe 8 primeiros bits na porta D
+    33: 000010   B925  out    PORTB,r18 ;Exibe os 2 últimos bits nos pinos (B1:B0)
+    34: 
+    35: 000011   CFF4  rjmp wait_adc    ;Retorna para nova conversão e leitura
+    36: 
+    37: 
+    38: config_pins:
+    39: ; Pino do ADC (PC0 não deve ser configurada como entrada!)
+    40: 000012   EF0F  ser     r16
+    41: 000013   B90A  out     DDRD,r16
+    42: 000014   B904  out     DDRB,r16 ;Configura portas D e B para exibir leitura do ADC (primeiro apenas na D com 8 bits, depois com 2 da B)
+    43: 000015   2700  clr     r16
+    44: 000016   B90B  out     PORTD,r16
+    45: 000017   B905  out     PORTB,r16;Inicia com saídas nas portas B e D zeradas
+    46: 000018   9508  ret
+    47: 
+    48: config_adc:
+    49: 000019   E400  ldi     r16,0b01_0_0_0000     ;Configura ADC com referência em VCC, justificado para a direita (10 bits) e no ch.0
+    50: 00001A   9300  sts     ADMUX,r16
+        00001B   007C
+    51: 00001C   EE06  ldi     r16,0b1_1_1_0_0_110   ;Habilita ADC, inicia conversão, configura autotrigger e PS64
+    52: 00001D   9300  sts     ADCSRA,r16
+        00001E   007A
+    53: 00001F   E000  ldi     r16,0b00000_000       ;Configura modo free-running
+    54: 000020   9300  sts     ADCSRB,r16
+        000021   007B
+    55: 000022   9508  ret
+
+List of symbols:
+Type nDef nUsed             Decimalval           Hexval Name
+  T     1     1                    171               AB ATMEGA328P
+  L     1     0                      0               00 CONFIG
+  L     1     4                      6               06 WAIT_ADC
+  L     1     2                     11               0B READ_ADC
+  L     1     2                     18               12 CONFIG_PINS
+  L     1     2                     25               19 CONFIG_ADC
+  C     1     0                     26               1A NOW_Y
+  C     1     0                      6               06 NOW_M
+  C     1     0                      7               07 NOW_D
+  C     1     0                  46180             B464 NOW_I
+   No macros.
+
+Program             :       35 words.
+Constants           :        0 words.
+Total program memory:       35 words.
+Eeprom space        :        0 bytes.
+Data segment        :        0 bytes.
+Compilation completed, no errors.
+Compilation ended 07.06.2026, 17:39:20

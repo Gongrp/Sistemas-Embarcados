@@ -1,0 +1,120 @@
+gavrasm Gerd's AVR assembler version 5.4 (C)2022 by DG4FAC
+----------------------------------------------------------
+
+Path:        C:\Users\gongr\OneDrive\Documentos\GitHub\Sistemas-Embarcados\Exercicios_Lista_III\
+Source file: Exerc_1.asm
+Hex file:    Exerc_1.hex
+Eeprom file: Exerc_1.eep
+Compiled:    04.06.2026, 22:04:20
+Pass:        2
+
+     1: ;Monte um código que obtém uma palavra de 8 bits na porta D e guarda na memória
+     2: ;RAM de forma sequencial do primeiro endereço até o último, com os seguintes
+     3: ;gatilhos
+     4: 
+     5: ;a) apertando um botão (ex.:PB0)
+     6: 
+     7: ;b)a cada 10 ms usando um timer
+     8: 
+     9: .include "m328Pdef.inc"
+ -> Warning 009: Include defs not necessary, using internal values!
+   File: C:\Users\gongr\OneDrive\Documentos\GitHub\Sistemas-Embarcados\Exercicios_Lista_III\Exerc_1.asm, Line: 9
+   Source line: .include "m328Pdef.inc"
+    10: 
+    11: .cseg
+    12: .org 0x00
+    13: 
+    14: ; Configuração do Stacker Pointer -> Define o SP no final da memória SRAM x08ff
+    15: 000000   EF0F  ldi	R16,LOW(RAMEND)
+    16: 000001   BF0D  out	SPL,R16
+    17: 000002   E008  ldi	R16,HIGH(RAMEND)
+    18: 000003   BF0E  out	SPH,R16
+    19: 
+    20: ; Configuração do registrador X com o endereço 0x0100 (início da memória de dados)
+    21: 000004   E0A0  ldi XL,LOW(SRAM_START)
+    22: 000005   E0B1  ldi XH,HIGH(SRAM_START)
+    23: 
+    24: 000006   D015  rcall config_pins;
+    25: 000007   D01B  rcall config_timers;
+    26: 
+    27: ;constantes iniciais
+    28: 000008   E70D  ldi     r16, 0x7d
+    29: 000009   2EB0  mov     r11,r16; num de contagens para delay do botão -> com PS64 para delay de 500 mu_s
+    30: 
+    31: wait:
+    32: 00000A   9918  sbic    PINB,0
+    33: 00000B   CFFE  rjmp    wait
+    34: 00000C   2700  clr     r16
+    35: 00000D   BD06  out     TCNT0,R16       ;zera timer
+    36: 00000E   C000  rjmp    filter_delay    ;Parte para SR de debounce se pino 0 estiver apertado (LOW)
+    37: 
+    38: 
+    39: filter_delay:
+    40: 00000F   B506  in      r16,TCNT0
+    41: 000010   110B  cpse    r16,r11
+    42: 000011   CFFD  rjmp    filter_delay
+    43: 000012   C000  rjmp    filter_confirm
+    44: 
+    45: filter_confirm:
+    46: 000013   9918  sbic    PINB,0   ;Confere se botão segue apertado, pula se estiver
+    47: 000014   CFF5  rjmp    wait     ;volta ao loop inicial
+    48: 000015   C000  rjmp    filter_reset
+    49: 
+    50: filter_reset:
+    51: 000016   9B18  sbis    PINB,0; Espera botão ser solto
+    52: 000017   CFFE  rjmp    filter_reset
+    53: 000018   C000  rjmp    store_data; Pula para SR de armazenar valor da porta D
+    54: 
+    55: store_data:
+    56: 000019   B119  in      r17,PIND  ;salva valores de entrada da porta D
+    57: 00001A   931D  st      X+,r17    ;guarda valor de r17 no endereço da memória armazenado em X e o incrementa em uma unidade
+    58: 00001B   CFEE  rjmp wait         ;retorna ao loop original
+    59: 
+    60: 
+    61: 
+    62: ;config_pins
+    63: config_pins:
+    64: 00001C   2700  clr     r16
+    65: 00001D   B90A  out     DDRD,r16; define porta D inteira como input
+    66: 00001E   E000  ldi     r16,(0<<PINB0)
+    67: 00001F   B904  out     DDRB,r16; define pino B0 como input (botão)
+    68: 000020   E001  ldi     r16,(1<<PINB0)
+    69: 000021   B905  out     PORTB, r16; configura pullup no pino B0
+    70: 000022   9508  ret
+    71: 
+    72: ;config_timers
+    73: config_timers:
+    74: 
+    75: ;configura timer0 - delay do botão
+    76: 000023   E000  ldi   r16,0b0000_0000
+    77: 000024   BD04  out   TCCR0A,r16
+    78: 000025   E002  ldi   r16, 0b00_0_00_010 ; Define PS de 8 (010) ou 64 (011)
+    79: 000026   BD05  out   TCCR0B, r16
+    80: 
+    81: 000027   9508  ret
+    82: 
+    83: 
+
+List of symbols:
+Type nDef nUsed             Decimalval           Hexval Name
+  T     1     1                    171               AB ATMEGA328P
+  L     1     6                     10               0A WAIT
+  L     1     4                     15               0F FILTER_DELAY
+  L     1     2                     19               13 FILTER_CONFIRM
+  L     1     4                     22               16 FILTER_RESET
+  L     1     2                     25               19 STORE_DATA
+  L     1     2                     28               1C CONFIG_PINS
+  L     1     2                     35               23 CONFIG_TIMERS
+  C     1     0                     26               1A NOW_Y
+  C     1     0                      6               06 NOW_M
+  C     1     0                      4               04 NOW_D
+  C     1     0                  46177             B461 NOW_I
+   No macros.
+
+Program             :       40 words.
+Constants           :        0 words.
+Total program memory:       40 words.
+Eeprom space        :        0 bytes.
+Data segment        :        0 bytes.
+Compilation completed, no errors.
+Compilation ended 04.06.2026, 22:04:20
