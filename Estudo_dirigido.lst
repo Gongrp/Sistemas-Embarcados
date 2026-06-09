@@ -1,0 +1,150 @@
+gavrasm Gerd's AVR assembler version 5.4 (C)2022 by DG4FAC
+----------------------------------------------------------
+
+Path:        /home/aluno/Documentos/Goncalo/Sistemas-Embarcados-main/
+Source file: Estudo_dirigido.asm
+Hex file:    Estudo_dirigido.hex
+Eeprom file: Estudo_dirigido.eep
+Compiled:    09.06.2026, 16:58:13
+Pass:        2
+
+     1: .include m328Pdef.inc
+ -> Warning 009: Include defs not necessary, using internal values!
+   File: /home/aluno/Documentos/Goncalo/Sistemas-Embarcados-main/Estudo_dirigido.asm, Line: 1
+   Source line: .include m328Pdef.inc
+     2: .org 0x0000
+     3: 
+     4: 
+     5: ;Configurando SP
+     6: 000000   EF0F  ldi      r16,LOW(RAMEND)
+     7: 000001   BF0D  out      SPL,r16
+     8: 000002   E008  ldi      r16,HIGH(RAMEND)
+     9: 000003   BF0E  out      SPH,r16
+    10: 
+    11: 000004   D03F  rcall    config_timer
+    12: 000005   D034  rcall    config_adc
+    13: 000006   D042  rcall    config_pointer
+    14: 
+    15: ;constantes
+    16: 000007   2722  clr    r18         ;Registrador para armazenar qtd de aquisições (vai até 32)
+    17: 000008   E90C  ldi    r16,0x9C
+    18: 000009   2EC0  mov    r12,r16    ;Número de contagens do timer de delay
+    19: 00000A   EF04  ldi    r16,0xf4
+    20: 00000B   2EE0  mov    r14,r16
+    21: 00000C   E002  ldi    r16,0x02
+    22: 00000D   2EF0  mov    r15,r16    ;Registradores que guardam o último endereço da RAm antes de reiniciar
+    23: 00000E   2766  clr    r22
+    24: 00000F   2755  clr    r21        ;Registradores para acumular a soma
+    25: 000010   2777  clr    r23        ;Constante zero pra soma com carry
+    26: 
+    27: main_loop:
+    28: 000011   2700  clr    r16
+    29: 000012   BD06  out    TCNT0,r16  ;Reinicia timer
+    30: 000013   C000  rjmp   wait_delay
+    31: 
+    32: wait_delay:
+    33: 000014   B506  in   r16,TCNT0
+    34: 000015   12C0  cpse r12,r16  ;Pula se número de contagens tiver chegado em 156
+    35: 000016   CFFD  rjmp wait_delay
+    36: 000017   C000  rjmp start_adc
+    37: 
+    38: start_adc:
+    39: 000018   9100  lds  r16,ADCSRA
+        000019   007A
+    40: 00001A   6400  ori  r16, (1<<ADSC) ; Seta o bit ADSC para iniciar conversão
+    41: 00001B   9300  sts  ADCSRA,r16
+        00001C   007A
+    42: 
+    43: wait_conversion:
+    44: 00001D   9100  lds  r16,ADCSRA
+        00001E   007A
+    45: 00001F   FD06  sbrc r16,ADSC
+    46: 000020   CFFC  rjmp wait_conversion
+    47: 000021   9110  lds  r17,ADCH
+        000022   0079
+    48: 000023   0F51  add  r21,r17
+    49: 000024   1F67  adc  r22,r23
+    50: 000025   94B3  inc  r11
+    51: 000026   3220  cpi  r18,0x20  ;Compara o registrador da qtd de aquisições com 32
+    52: 000027   F009  breq average
+    53: 000028   CFEF  rjmp start_adc ;Seta o bit ADSC para iniciar uma nova conversão enquanto não cgegar em 32
+    54: 
+    55: average:       ;Divide por 32 para calcular a média
+    56: 000029   2700  clr r16
+    57: 
+    58: for:
+    59: 00002A   9566  lsr r22
+    60: 00002B   9557  ror r21
+    61: 00002C   9488  clc
+    62: 00002D   9503  inc r16
+    63: 00002E   3005  cpi r16,0x05
+    64: 00002F   F009  breq save
+    65: 000030   CFF9  rjmp for
+    66: 
+    67: save:
+    68: 000031   2722  clr   r18         ;Reinicializa a contagem de aquisições
+    69: 000032   2755  clr   r21         ;Zera registador que acumula soma
+    70: 000033   935D  st    X+,R21
+    71: 000034   11BF  cpse  XH,r15
+    72: 000035   1377  cpse  r23,r23
+    73: 000036   11AE  cpse  XL,r14
+    74: 000037   1377  cpse  r23,r23
+    75: 000038   D010  rcall config_pointer
+    76: 000039   CFD7  rjmp  main_loop
+    77: 
+    78: 
+    79: config_adc:
+    80: 00003A   E603  ldi   r16,0b01_1_0_0011
+    81: 00003B   9300  sts   ADMUX,r16
+        00003C   007C
+    82: 00003D   E805  ldi   r16,0b1_0000_101
+    83: 00003E   9300  sts   ADCSRA,r16
+        00003F   007A
+    84: 000040   2700  clr   r16
+    85: 000041   9300  sts   ADCSRB,r16
+        000042   007B
+    86: 000043   9508  ret
+    87: 
+    88: config_timer:
+    89: 000044   E000  ldi   r16,0b0000_00_00
+    90: 000045   BD04  out   TCCR0A,r16
+    91: 000046   E005  ldi   r16,0b000_00_101
+    92: 000047   BD05  out   TCCR0B,r16
+    93: 000048   9508  ret
+    94: 
+    95: config_pointer:
+    96: 000049   E0A0  ldi   XL,0x00
+    97: 00004A   E0B1  ldi   XH,0x01
+    98: 00004B   9508  ret
+    99: 
+   100: 
+   101: 
+   102: 
+   103: 
+
+List of symbols:
+Type nDef nUsed             Decimalval           Hexval Name
+  T     1     1                    171               AB ATMEGA328P
+  L     1     2                     17               11 MAIN_LOOP
+  L     1     4                     20               14 WAIT_DELAY
+  L     1     4                     24               18 START_ADC
+  L     1     2                     29               1D WAIT_CONVERSION
+  L     1     2                     41               29 AVERAGE
+  L     1     2                     42               2A FOR
+  L     1     2                     49               31 SAVE
+  L     1     2                     58               3A CONFIG_ADC
+  L     1     2                     68               44 CONFIG_TIMER
+  L     1     4                     73               49 CONFIG_POINTER
+  C     1     0                     26               1A NOW_Y
+  C     1     0                      6               06 NOW_M
+  C     1     0                      9               09 NOW_D
+  C     1     0                  46182             B466 NOW_I
+   No macros.
+
+Program             :       76 words.
+Constants           :        0 words.
+Total program memory:       76 words.
+Eeprom space        :        0 bytes.
+Data segment        :        0 bytes.
+Compilation completed, no errors.
+Compilation ended 09.06.2026, 16:58:13
